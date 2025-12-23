@@ -1,23 +1,9 @@
-/* AUMLMASIG Diagnosis v1.1 - SHOPLINE safe (event delegation + robust strings) */
+/* AUMLMASIG Diagnosis v1.2 - SHOPLINE safe (event delegation) */
 (function () {
   "use strict";
 
-  var DEBUG = typeof location !== "undefined" && location.search.indexOf("debug=true") !== -1;
-
-  function log() {
-    if (!DEBUG) return;
-    try { console.log.apply(console, arguments); } catch (e) {}
-  }
-
-  function closest(el, sel) {
-    return el && el.closest ? el.closest(sel) : null;
-  }
-
-  function getRoot(fromEl) {
-    // 主要靠 data-auml-diagnosis；若平台動到 data-*，至少還能靠 class 撐住
-    return closest(fromEl, "[data-auml-diagnosis]") || closest(fromEl, ".auml-diagnosis");
-  }
-
+  function closest(el, sel) { return el && el.closest ? el.closest(sel) : null; }
+  function getRoot(fromEl) { return closest(fromEl, "[data-auml-diagnosis]") || closest(fromEl, ".auml-diagnosis"); }
   function q(root, sel) { return root.querySelector(sel); }
   function qa(root, sel) { return Array.prototype.slice.call(root.querySelectorAll(sel)); }
 
@@ -25,18 +11,14 @@
     var el = root.querySelector('input[name="' + name + '"]:checked');
     return el ? el.value : "unknown";
   }
-
   function valsCheckbox(root, name) {
     return qa(root, 'input[name="' + name + '"]:checked').map(function (x) { return x.value; });
   }
 
   function escapeHtml(s) {
     return String(s || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   function textMapGoal(goal) {
@@ -52,8 +34,7 @@
     return m[goal] || "未選擇";
   }
 
-  function getDataAttr(root, kebab, camel) {
-    // 同時支援 getAttribute 與 dataset（有些情境 dataset 可能被改寫）
+  function getData(root, kebab, camel) {
     var v = root.getAttribute && root.getAttribute(kebab);
     if (v) return v;
     var ds = root.dataset || {};
@@ -62,17 +43,15 @@
 
   function chooseProductUrl(root, goal) {
     var map = {
-      nvme_basic: getDataAttr(root, "data-product-nvme-basic-url", "productNvmeBasicUrl"),
-      nvme_raid:  getDataAttr(root, "data-product-nvme-raid-url",  "productNvmeRaidUrl"),
-      u2:         getDataAttr(root, "data-product-u2-url",         "productU2Url"),
-      sata:       getDataAttr(root, "data-product-sata-url",       "productSataUrl"),
-      usb:        getDataAttr(root, "data-product-usb-url",        "productUsbUrl"),
-      nic:        getDataAttr(root, "data-product-nic-url",        "productNicUrl")
+      nvme_basic: getData(root, "data-product-nvme-basic-url", "productNvmeBasicUrl"),
+      nvme_raid:  getData(root, "data-product-nvme-raid-url",  "productNvmeRaidUrl"),
+      u2:         getData(root, "data-product-u2-url",         "productU2Url"),
+      sata:       getData(root, "data-product-sata-url",       "productSataUrl"),
+      usb:        getData(root, "data-product-usb-url",        "productUsbUrl"),
+      nic:        getData(root, "data-product-nic-url",        "productNicUrl")
     };
     var url = map[goal] || "";
-    // 只允許 http/https
-    if (url && !/^https?:\/\//i.test(url)) url = "";
-    return url;
+    return (/^https?:\/\//i.test(url)) ? url : "";
   }
 
   function recommendPlan(longrun) {
@@ -109,13 +88,11 @@
     var box = q(root, "[data-auml-result]") || q(root, ".result");
     if (!box) return;
 
-    // 建議：你也可以在 HTML 裡自行放 <div data-auml-result-holder></div>
     var holder = q(root, "[data-auml-result-holder]");
     if (!holder) {
       holder = document.createElement("div");
       holder.setAttribute("data-auml-result-holder", "1");
       holder.style.marginTop = "10px";
-      // 插在 result 最前面，避免找不到插入點
       box.insertBefore(holder, box.firstChild);
     }
     holder.innerHTML = html;
@@ -123,37 +100,21 @@
 
   function handleDiagnose(btn) {
     var root = getRoot(btn);
-    if (!root) { log("No root found"); return; }
+    if (!root) return;
 
-    var device = (q(root, 'input[name="auml_device"]') || {}).value || "";
-    var goal = valRadio(root, "auml_goal");
-    var pains = valsCheckbox(root, "auml_pain");
-    var pcie = valRadio(root, "auml_pcie");
+    var device  = (q(root, 'input[name="auml_device"]') || {}).value || "";
+    var goal    = valRadio(root, "auml_goal");
+    var pains   = valsCheckbox(root, "auml_pain");
+    var pcie    = valRadio(root, "auml_pcie");
     var longrun = valRadio(root, "auml_longrun");
-    var os = valRadio(root, "auml_os");
+    var os      = valRadio(root, "auml_os");
 
     var note = "";
-    if (pcie === "none") {
-      note = "你選到「沒有 PCIe 插槽/筆電/迷你主機」：多數 PCIe 擴充卡無法安裝。建議改走外接方案或直接聯絡客服判斷機型可擴充性。";
-    }
-    if (goal === "unknown") {
-      note = note ? note : "你尚未選擇「目的」，建議至少選一項，推薦會更準。";
-    }
+    if (pcie === "none") note = "你選到「沒有 PCIe 插槽/筆電/迷你主機」：多數 PCIe 擴充卡無法安裝。建議聯絡客服判斷機型可擴充性。";
+    if (goal === "unknown" && !note) note = "你尚未選擇「目的」，建議至少選一項，推薦會更準。";
 
     var plan = recommendPlan(longrun);
     var productUrl = chooseProductUrl(root, goal);
-
-    var data = {
-      device: device,
-      goal: goal,
-      pains: pains,
-      pcie: pcie,
-      longrun: longrun,
-      os: os,
-      plan: plan,
-      note: note,
-      productUrl: productUrl
-    };
 
     setStatus(root, "已收到，正在產生建議…", false);
 
@@ -161,28 +122,25 @@
       + '<div><b>建議方案：</b> ' + escapeHtml(plan) + "</div>"
       + '<div style="margin-top:8px"><b>你的目的：</b> ' + escapeHtml(textMapGoal(goal)) + "</div>";
 
-    if (note) {
-      html += '<div style="margin-top:8px"><b>相容性提醒：</b> ' + escapeHtml(note) + "</div>";
-    }
+    if (note) html += '<div style="margin-top:8px;color:#b00"><b>相容性提醒：</b> ' + escapeHtml(note) + "</div>";
 
     if (productUrl) {
       html += '<div style="margin-top:10px">'
-           +  '<a href="' + escapeHtml(productUrl) + '" target="_blank" rel="noopener" '
-           +  'style="display:inline-block;padding:10px 12px;border-radius:10px;border:1px solid #111;text-decoration:none;font-weight:700">'
-           +  "查看推薦商品</a></div>";
+           +  '<a class="btn primary" target="_blank" rel="noopener" href="' + escapeHtml(productUrl) + '">查看推薦商品</a>'
+           +  "</div>";
     } else {
-      html += '<div style="margin-top:10px;color:#777">'
-           +  "（尚未設定推薦商品連結：請到 HTML 的 data-product-xxx-url 填入對應商品頁）</div>";
+      html += '<div style="margin-top:10px;color:#777">（尚未設定推薦商品連結：請在 HTML 的 data-product-xxx-url 填入對應商品頁）</div>';
     }
 
     setResultHtml(root, html);
 
-    var copy = buildCopyText(data);
     var copyBox = q(root, "[data-auml-copybox]");
-    if (copyBox) copyBox.value = copy;
+    if (copyBox) copyBox.value = buildCopyText({
+      device: device, goal: goal, pains: pains, pcie: pcie, longrun: longrun, os: os,
+      plan: plan, note: note, productUrl: productUrl
+    });
 
     setStatus(root, "外部 JS OK：已完成診斷（可複製診斷單）", false);
-    log("Diagnose done", data);
   }
 
   function handleReset(btn) {
@@ -195,21 +153,15 @@
     qa(root, 'input[name="auml_goal"]').forEach(function (el) { el.checked = false; });
     qa(root, 'input[name="auml_pain"]').forEach(function (el) { el.checked = false; });
 
-    var pcie = q(root, 'input[name="auml_pcie"][value="unknown"]');
-    if (pcie) pcie.checked = true;
-
-    var lr = q(root, 'input[name="auml_longrun"][value="unknown"]');
-    if (lr) lr.checked = true;
-
-    var os = q(root, 'input[name="auml_os"][value="unknown"]');
-    if (os) os.checked = true;
+    var pcie = q(root, 'input[name="auml_pcie"][value="unknown"]'); if (pcie) pcie.checked = true;
+    var lr   = q(root, 'input[name="auml_longrun"][value="unknown"]'); if (lr) lr.checked = true;
+    var os   = q(root, 'input[name="auml_os"][value="unknown"]'); if (os) os.checked = true;
 
     var copyBox = q(root, "[data-auml-copybox]");
     if (copyBox) copyBox.value = "";
 
-    setResultHtml(root, '<div style="margin-top:8px">已清除，請重新選擇後再按「立即診斷」。</div>');
+    setResultHtml(root, '<div style="margin-top:8px;color:#555">已清除，請重新選擇後再按「立即診斷」。</div>');
     setStatus(root, "已清除重填", false);
-    log("Reset");
   }
 
   function handleCopy(btn) {
@@ -225,38 +177,29 @@
     try {
       var ok = document.execCommand("copy");
       setStatus(root, ok ? "已複製到剪貼簿 ✅" : "複製失敗：請手動全選複製", !ok);
-      log("Copy", ok);
     } catch (e) {
       setStatus(root, "複製失敗：請手動全選複製", true);
-      log("Copy error", e);
     }
   }
 
-  // ✅ 事件委派：不怕 SHOPLINE 重繪/換 DOM
   document.addEventListener("click", function (ev) {
     var t = ev.target;
 
-    var btnDiagnose = closest(t, '[data-auml-action="diagnose"]');
-    if (btnDiagnose) { ev.preventDefault(); handleDiagnose(btnDiagnose); return; }
+    var d = closest(t, '[data-auml-action="diagnose"]');
+    if (d) { ev.preventDefault(); handleDiagnose(d); return; }
 
-    var btnReset = closest(t, '[data-auml-action="reset"]');
-    if (btnReset) { ev.preventDefault(); handleReset(btnReset); return; }
+    var r = closest(t, '[data-auml-action="reset"]');
+    if (r) { ev.preventDefault(); handleReset(r); return; }
 
-    var btnCopy = closest(t, '[data-auml-action="copy"]');
-    if (btnCopy) { ev.preventDefault(); handleCopy(btnCopy); return; }
+    var c = closest(t, '[data-auml-action="copy"]');
+    if (c) { ev.preventDefault(); handleCopy(c); return; }
   }, true);
 
   function boot() {
     var roots = document.querySelectorAll("[data-auml-diagnosis], .auml-diagnosis");
-    for (var i = 0; i < roots.length; i++) {
-      setStatus(roots[i], "外部 JS OK：按鈕事件已綁定，等待你按「立即診斷」", false);
-    }
-    log("Boot roots =", roots.length);
+    for (var i = 0; i < roots.length; i++) setStatus(roots[i], "外部 JS OK：等待你按「立即診斷」", false);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
-  } else {
-    boot();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
 })();
